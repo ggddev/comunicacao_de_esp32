@@ -18,11 +18,18 @@ Versão 0.1
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include <LiquidCrystal_I2C.h>
-#include <Botao.h>
 #include <HTTPClient.h>
+#include "led.h"
+#include "botao.h"
+
+void aoReceber(char*, byte*, unsigned int);
+void tratamento(String);
+void exibirDadosDisplay();
 
 LiquidCrystal_I2C lcd(0x20, 16, 2);
-Botao btn();
+Botao btnCaptura(4);
+Led led(15);
+
 
 const char* SSID = "SENAI EDUCACIONAL";
 const char* SENHA = "info@134";
@@ -39,6 +46,8 @@ PubSubClient mqtt(wifiClient);
 void setup() {
   Serial.begin(115200);
   Serial.println();
+  btnCaptura.iniciar();
+  led.iniciar();
 
   WiFi.begin(SSID, SENHA);
   while(WiFi.status() != WL_CONNECTED){
@@ -51,7 +60,7 @@ void setup() {
   Serial.printf("\n\rConectando ao Servidor do broker %s\n\r", BROKER);
 
   mqtt.setServer(BROKER, PORTA);
-  //mqtt.setCallback();
+  mqtt.setCallback(aoReceber);
 
   String id = "esp32-" + String((uint32_t)ESP.getEfuseMac(), HEX);
 
@@ -66,6 +75,8 @@ void setup() {
     Serial.print("Falha: ");
     Serial.println(mqtt.state());
   }
+
+  exibirDadosDisplay();
 }
 
 void loop() {
@@ -101,10 +112,15 @@ void tratamento(String mensagem){
   }
 }
 
+void exibirDadosDisplay(){
+  if(btnCaptura.pressionou()){
+    led.ligar();
+  }
+}
+
 /*
 O esp B fica aguardando a mensagem do esp A, chegando os dados o esp B 
-mostra os dados no display B, se for um pokémon raro (acho que tem esse 
-bglh no Json da Pokedex) acende o led B. Apertando o botão B, mostra no
+mostra os dados no display B, acende o led B. Apertando o botão B, mostra no
 display B que capturou, e também envia essa mensagem para o esp A. 
 Quando chega a mensagem no espelho A o led A acende e aparece no 
 display A que foi capturado
