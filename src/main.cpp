@@ -1,14 +1,14 @@
 /*
 ====================================
-Programa: Comunicação de ESP32			      
-Descrição: Foi preciso conectar os esps ao WiFi, ligar os LEDs, 
+Programa: Comunicação de ESP32
+Descrição: Foi preciso conectar os esps ao WiFi, ligar os LEDs,
 usar JSON para estruturação e troca de dados, usar Display LCD para
-exibição de informações, como requisito opcional o consumo de API para 
+exibição de informações, como requisito opcional o consumo de API para
 requisição e tratamento dos dados, um botão para interação com usuário,
-e utilizando MQTT para realizar a comunicação entre os dispositivos em 
+e utilizando MQTT para realizar a comunicação entre os dispositivos em
 formato JSON.
-Autor: Guilherme Dantas           
-Data: 04/11/2026                  
+Autor: Guilherme Dantas
+Data: 04/11/2026
 Versão 0.1
 ====================================
 */
@@ -19,42 +19,47 @@ Versão 0.1
 #include <ArduinoJson.h>
 #include <LiquidCrystal_I2C.h>
 #include <HTTPClient.h>
-#include "led.h"
-#include "botao.h"
+#include <Botao.h>
 
-void aoReceber(char*, byte*, unsigned int);
+void aoReceber(char *, byte *, unsigned int);
 void tratamento(String);
-void exibirDadosDisplay();
+void exibirDadosDisplay(String);
+void controlarLed();
+void botaoEnviarMensagem();
+void tempoLedLigado();
 
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 Botao btnCaptura(0);
-Led led(15);
+Botao btnNaoCapturou(15);
 
-String exibirNoLCD;
+bool exibirNoLCD;
 
+unsigned long ledDesligaEm = 0;
 
-const char* SSID = "SENAI EDUCACIONAL";
-const char* SENHA = "info@134";
+const char *SSID = "SENAI EDUCACIONAL";
+const char *SENHA = "info@134";
 
-const char* BROKER = "broker.emqx.io";
+const char *BROKER = "broker.emqx.io";
 
 const int PORTA = 1883;
-const char* TOPICO_SUB = "senai134/esp32/comunicacao_entre_esp/pokedex"; // eu recebo do esp do diogo
-const char* TOPICO_PUB = "senai134/esp32/comunicacao_entre_esp/treinador"; //eu envio para o esp do diogo
+const char *TOPICO_SUB = "senai134/esp32/comunicacao_entre_esp/pokedex";   // eu recebo do esp do diogo
+const char *TOPICO_PUB = "senai134/esp32/comunicacao_entre_esp/treinador"; // eu envio para o esp do diogo
 
 WiFiClient wifiClient;
 PubSubClient mqtt(wifiClient);
 
-void setup() {
+void setup()
+{
   Serial.begin(115200);
   Serial.println();
   btnCaptura.iniciar();
-  led.iniciar();
+  btnNaoCapturou.iniciar();
   lcd.init();
   lcd.backlight();
 
   WiFi.begin(SSID, SENHA);
-  while(WiFi.status() != WL_CONNECTED){
+  while (WiFi.status() != WL_CONNECTED)
+  {
     Serial.print(".");
     delay(500);
   }
@@ -71,79 +76,191 @@ void setup() {
   bool brokerConectado = false;
   brokerConectado = mqtt.connect(id.c_str());
 
-  if(brokerConectado){
+  if (brokerConectado)
+  {
     Serial.printf("\n\rBroker %s conectado com sucesso!\n\r", BROKER);
     mqtt.subscribe(TOPICO_SUB);
-
-  } else{
+  }
+  else
+  {
     Serial.printf("Falha ao conectar ao broker %s\n\r", BROKER);
     Serial.print("Falha: ");
     Serial.println(mqtt.state());
   }
 
-  exibirDadosDisplay();
+  // exibirDadosDisplay();
 }
 
-void loop() {
+void loop()
+{
+  btnCaptura.atualizar();
+  btnNaoCapturou.atualizar();
   mqtt.loop();
 
-  
+  if (btnCaptura.pressionou())
+  {
+    botaoEnviarMensagem();
+  }
+
+  if (btnNaoCapturou.pressionou())
+  {
+    botaoEnviarMensagem();
+  }
+
+  tempoLedLigado();
+  exibirDadosDisplay("");
 }
 
-void aoReceber(char* topico, byte* payload, unsigned int tamanho){
+void aoReceber(char *topico, byte *payload, unsigned int tamanho)
+{
   String mensagem;
   mensagem.reserve(tamanho);
 
-  for(unsigned int i = 0; i < tamanho; i++){
+  for (unsigned int i = 0; i < tamanho; i++)
+  {
     mensagem += (char)payload[i];
   }
 
-  exibirNoLCD = mensagem;
-  
+  if (mensagem == "")
+  {
+    exibirNoLCD = false;
+  }
+
+  exibirDadosDisplay(mensagem);
+
+  // exibirDadosDisplay(mensagem);
+
   Serial.printf("Mensagem recebida no tópico: %s \n\r mensagem: %s\n\r", topico, mensagem.c_str());
 
   tratamento(mensagem);
 }
 
-void tratamento(String mensagem){
+void tempoLedLigado()
+{
+  int temporizador = millis();
+  int tempoLimite = 3000 + millis();
+  if (tempoLimite > temporizador)
+  {
+    rgbLedWrite(48, 0, 0, 0);
+  }
+}
 
-  
+void tratamento(String mensagem)
+{
   JsonDocument doc;
 
   DeserializationError erro = deserializeJson(doc, mensagem);
 
-  bool estadoLed = doc["estadoLed"].as<bool>();
+  bool mensagemRecebida = doc["msg"].as<const char *>();
+  bool pokemonIdRecebido = doc["id"].as<int>();
+  bool pokemonNomeRecebido = doc["nome"].as<const char *>();
+  bool pokemonAlturaRecebido = doc["altura"].as<const char *>();
+  bool pokemonPesoRecebido = doc["peso"].as<const char *>();
 
-  if(estadoLed){
+  if (pokemonIdRecebido)
+  {
     Serial.println("Led ligado");
     rgbLedWrite(48, 0, 0, 255);
-  } else{
+    delay(3000);
+  }
+  else
+  {
     Serial.println("Led desligado");
-    rgbLedWrite(48, 0,0,0);
+    rgbLedWrite(48, 0, 0, 0);
   }
 }
 
-void exibirDadosDisplay(){
-  if(exibirNoLCD != ""){
-    lcd.setCursor(0,0);
-    lcd.print(exibirNoLCD);
-  } else{
-    lcd.setCursor(0,0);
+void exibirDadosDisplay(String mensagem)
+{
+
+  String aviso;
+  JsonDocument doc;
+
+  DeserializationError deserializeError = deserializeJson(doc, aviso);
+
+  String nome = "";
+  if (doc["nome"].is<const char *>())
+    nome = "Nome: " + doc["nome"].as<String>();
+
+  String id = "";
+  if (doc["id"].is<int>())
+    id = "ID: " + doc["id"].as<int>();
+
+  String altura = "";
+  if (doc["altura"].is<int>())
+    altura = "Altura: " + doc["altura"].as<int>();
+
+  String peso = "";
+  if (doc["peso"].is<int>())
+    peso = "Peso: " + doc["peso"].as<int>();
+
+  if (exibirNoLCD)
+  {
+    lcd.setCursor(0, 0);
+    lcd.print(id);
+    lcd.setCursor(0, 1);
+    lcd.print(nome);
+    lcd.setCursor(0, 2);
+    lcd.print(altura);
+    lcd.setCursor(0, 3);
+    lcd.print(peso);
+  }
+  else
+  {
+    lcd.setCursor(0, 0);
     lcd.print("Nao foi possivel exibir os dados.");
   }
 }
 
+void botaoEnviarMensagem()
+{
+  static unsigned long ultimoEnvio = 0;
+  const unsigned long tempoEntreEnvios = 5000;
+
+  bool capturado;
+
+  if (btnCaptura.clicou())
+  {
+    lcd.clear();
+    lcd.setCursor(4, 1);
+    lcd.print("Pokemon Capturado!");
+    capturado = true;
+  }
+  if (btnNaoCapturou.clicou())
+  {
+    lcd.clear();
+    lcd.setCursor(6, 1);
+    lcd.print("Pokemon Nao Capturado");
+    capturado = false;
+  }
+
+  if (millis() - ultimoEnvio > tempoEntreEnvios)
+  {
+    ultimoEnvio = millis();
+
+    JsonDocument doc;
+    doc["capturado"] = capturado;
+
+    String mensagem;
+    serializeJson(doc, mensagem);
+
+    mqtt.publish(TOPICO_PUB, mensagem.c_str());
+    Serial.printf("Mensagem a ser enviada no tópico %s: \n\r%s\n\r", TOPICO_PUB, mensagem.c_str());
+  }
+}
+
 /*
-receber mensagens do mqtt vindas do esp-diogo
+receber mensagens do mqtt vindas do esp-diogo ----- FEITO
 
-acender led ao receber mensagem
+acender led ao receber mensagem  ----- FEITO
 
-deserializar mensagem do diogo
+deserializar mensagem do diogo    ------ FEITO
 
-botao funcionar
+botao funcionar  ------ FEITO
 
-ao clicar no botao, mostrar no lcd a mensagem "Capturou!"
+ao clicar no botao, mostrar no lcd a mensagem "Capturou!" ---- FEITO
 
-enviar essa mensagem para o esp-diogo
+enviar essa mensagem para o esp-diogo ---- FEITO
 
+criar uma bool capturada para o diogo como json doc ---- FEITO
 */
