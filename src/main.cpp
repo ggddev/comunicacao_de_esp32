@@ -7,8 +7,8 @@ exibição de informações, como requisito opcional o consumo de API para
 requisição e tratamento dos dados, um botão para interação com usuário,
 e utilizando MQTT para realizar a comunicação entre os dispositivos em
 formato JSON.
-Autor: Guilherme Dantas
-Data: 04/11/2026
+Autor: Guilherme Dantas           
+Data: 04/11/2026                  
 Versão 0.1
 ====================================
 */
@@ -24,7 +24,6 @@ Versão 0.1
 void aoReceber(char *, byte *, unsigned int);
 void tratamento(String);
 void exibirDadosDisplay(String);
-void controlarLed();
 void botaoEnviarMensagem();
 void tempoLedLigado();
 
@@ -87,8 +86,6 @@ void setup()
     Serial.print("Falha: ");
     Serial.println(mqtt.state());
   }
-
-  // exibirDadosDisplay();
 }
 
 void loop()
@@ -127,9 +124,7 @@ void aoReceber(char *topico, byte *payload, unsigned int tamanho)
   }
 
   exibirDadosDisplay(mensagem);
-
-  // exibirDadosDisplay(mensagem);
-
+  
   Serial.printf("Mensagem recebida no tópico: %s \n\r mensagem: %s\n\r", topico, mensagem.c_str());
 
   tratamento(mensagem);
@@ -172,11 +167,12 @@ void tratamento(String mensagem)
 
 void exibirDadosDisplay(String mensagem)
 {
+  if(mensagem == "") return;
+  lcd.clear();
 
-  String aviso;
   JsonDocument doc;
 
-  DeserializationError deserializeError = deserializeJson(doc, aviso);
+  DeserializationError deserializeError = deserializeJson(doc, mensagem);
 
   String nome = "";
   if (doc["nome"].is<const char *>())
@@ -184,17 +180,17 @@ void exibirDadosDisplay(String mensagem)
 
   String id = "";
   if (doc["id"].is<int>())
-    id = "ID: " + doc["id"].as<int>();
+    id = "ID: " + String(doc["id"].as<int>());
 
   String altura = "";
   if (doc["altura"].is<int>())
-    altura = "Altura: " + doc["altura"].as<int>();
+    altura = "Altura: " + String(doc["altura"].as<int>());
 
   String peso = "";
   if (doc["peso"].is<int>())
-    peso = "Peso: " + doc["peso"].as<int>();
+    peso = "Peso: " + String(doc["peso"].as<int>());
 
-  if (exibirNoLCD)
+  if (!deserializeError)//esta deserializeError vai fazer a mesma função da variavel exibirNoLcd (neste cenario)
   {
     lcd.setCursor(0, 0);
     lcd.print(id);
@@ -208,7 +204,9 @@ void exibirDadosDisplay(String mensagem)
   else
   {
     lcd.setCursor(0, 0);
-    lcd.print("Nao foi possivel exibir os dados.");
+    lcd.print("Erro no Json");
+    lcd.setCursor(0,1);
+    lcd.print(deserializeError.c_str());
   }
 }
 
@@ -222,14 +220,14 @@ void botaoEnviarMensagem()
   if (btnCaptura.clicou())
   {
     lcd.clear();
-    lcd.setCursor(4, 1);
+    lcd.setCursor(0, 1);
     lcd.print("Pokemon Capturado!");
     capturado = true;
   }
   if (btnNaoCapturou.clicou())
   {
     lcd.clear();
-    lcd.setCursor(6, 1);
+    lcd.setCursor(0, 1);
     lcd.print("Pokemon Nao Capturado");
     capturado = false;
   }
@@ -248,19 +246,3 @@ void botaoEnviarMensagem()
     Serial.printf("Mensagem a ser enviada no tópico %s: \n\r%s\n\r", TOPICO_PUB, mensagem.c_str());
   }
 }
-
-/*
-receber mensagens do mqtt vindas do esp-diogo ----- FEITO
-
-acender led ao receber mensagem  ----- FEITO
-
-deserializar mensagem do diogo    ------ FEITO
-
-botao funcionar  ------ FEITO
-
-ao clicar no botao, mostrar no lcd a mensagem "Capturou!" ---- FEITO
-
-enviar essa mensagem para o esp-diogo ---- FEITO
-
-criar uma bool capturada para o diogo como json doc ---- FEITO
-*/
